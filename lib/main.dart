@@ -1,9 +1,6 @@
+import 'package:bmi_calc/providers/data_provider.dart';
 import 'package:flutter/material.dart';
-
-enum Gender {
-  male,
-  female,
-}
+import 'package:provider/provider.dart';
 
 void main() => runApp(const MainApp());
 
@@ -15,94 +12,38 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> {
-  TextEditingController weightController = TextEditingController();
-  TextEditingController heightController = TextEditingController();
-  TextEditingController ageController = TextEditingController();
-  Gender? gender;
-
-  double weightValue = 0;
-  double heightValue = 0;
-  int? ageValue;
-  double bmi = 0;
-  String? category;
-
-
-  void updateAge(double specifiedAgeValue) {
-    setState(() {
-      ageValue = specifiedAgeValue.toInt();
-    });
-  }
-
-  void updateGender(Gender? selectedGender) {
-    setState(() {
-      gender = selectedGender;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    return  MaterialApp(
-      home: Scaffold(
-        body: Column(
-          children: [
-            MetricsFormField(controller: weightController, title: "Enter your weight in kilograms (numbers only)"),
-            MetricsFormField(controller: heightController, title: "Enter your height in cm (numbers only)"),
-            const Text("Age"),
-            AgeSlider(controller: ageController, onChanged: updateAge,),
-            GenderRadio(onChanged: updateGender),
-            TextButton(
-              onPressed: () {
-                if (weightController.text == '') {
-                  weightValue = 0.0;
-                } else {
-                  weightValue = double.parse(weightController.text);
-                }
-                if (heightController.text == '') {
-                  heightValue = 0.0;
-                } else {
-                  heightValue = double.parse(heightController.text)*0.01;
-                }
-
-                setState(() {
-                  bmi = weightValue / (heightValue * heightValue);
-
-                  if (bmi < 18.5) {
-                    category = 'Underweight';
-                  } else if (bmi >= 18.5 && bmi < 25) {
-                    category = 'Normal';
-                  } else if (bmi >= 25 && bmi < 30) {
-                    category = 'Overweight';
-                  } else {
-                    category = 'Obese';
-                  }
-                });
-
-              },
-              child: const Text("Calculate"),
-            ),
-            Container(
-              alignment: Alignment.topLeft,
-              padding: const EdgeInsets.only(left: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('BMI: ${bmi.toStringAsFixed(2)}'),
-                  Text('Category: $category'),
-                ],
-              ),
-            ),
-          ],
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => DataProvider(),
         )
-      ),
+      ],
+      builder: (context, child) {
+        return MaterialApp(
+          home: Scaffold(
+            appBar: AppBar(
+              title: const Text('BMI Calculator'),
+            ),
+            body: const Column(
+              children: [
+                MetricsFormField(),
+                AgeSlider(),
+                GenderRadio(),
+                CalculateButton(),
+                ResultText(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
 class MetricsFormField extends StatefulWidget {
-  final String? title;
-  final TextEditingController controller;
-
-  const MetricsFormField({super.key, required this.controller, required this.title});
+  const MetricsFormField({super.key});
 
   @override
   State<MetricsFormField> createState() => _MetricsFormFieldState();
@@ -110,52 +51,66 @@ class MetricsFormField extends StatefulWidget {
 
 class _MetricsFormFieldState extends State<MetricsFormField> {
   @override
-  void dispose() {
-    widget.controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    var dataState = context.watch<DataProvider>();
+
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: TextFormField(
-        controller: widget.controller,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          border: const UnderlineInputBorder(),
-          labelText: widget.title,
-        )
+      child: Column(
+        children: [
+          TextFormField(
+            controller: dataState.weightController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              border: UnderlineInputBorder(),
+              labelText: 'Type your weight (in kg)',
+            ),
+            onChanged: (value) {
+              setState(() {
+                context.read<DataProvider>().preventNonFloatInput(
+                  dataState.weightController,
+                  value
+                );
+              });
+            },
+          ),
+          TextFormField(
+            controller: dataState.heightController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              border: UnderlineInputBorder(),
+              labelText: 'Type your height (in cm)',
+            ),
+            onChanged: (value) {
+              setState(() {
+                  context.read<DataProvider>().preventNonFloatInput(
+                  dataState.heightController,
+                  value
+                );
+              });
+            },
+          ),
+        ],
       ),
     );
   }
 }
 
 class AgeSlider extends StatefulWidget {
-  final TextEditingController controller;
-  // int value;
-  final ValueChanged<double> onChanged;
-
-  const AgeSlider({super.key, required this.controller, required this.onChanged});
+  const AgeSlider({super.key});
 
   @override
   State<AgeSlider> createState() => _AgeSliderState();
 }
 
 class _AgeSliderState extends State<AgeSlider> {
-  double ageValue = 1;
-
-  @override
-  void dispose() {
-    widget.controller.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    // widget.controller.value = const TextEditingValue(text: '20');
+    var dataState = context.watch<DataProvider>();
+    var ageValue = dataState.ageValue.toDouble();
+
     return Column(
-      children: <Widget>[
+      children: [
         Slider(
           value: ageValue,
           min: 1,
@@ -164,18 +119,21 @@ class _AgeSliderState extends State<AgeSlider> {
           label: ageValue.round().toString(),
           onChanged: (value) {
             setState(() {
-              ageValue = value;
-              widget.controller.text = ageValue.toInt().toString();
+              context.read<DataProvider>().toogleAgeValue(value.toString());
+              context.read<DataProvider>().toogleAgeController();
             });
-            widget.onChanged(ageValue);
           },
         ),
         Padding(
           padding: const EdgeInsets.only(left: 20, right: 20, bottom: 10),
           child: TextField(
-            controller: widget.controller,
+            controller: dataState.ageController,
             onChanged: (value) {
-          
+              setState(() {
+                if (value != '') {
+                  context.read<DataProvider>().toogleAgeValue(value);
+                }
+              });
             },
           ),
         )
@@ -185,45 +143,90 @@ class _AgeSliderState extends State<AgeSlider> {
 }
 
 class GenderRadio extends StatefulWidget {
-  final ValueChanged<Gender?> onChanged;
-
-  GenderRadio({super.key, required this.onChanged});
+  const GenderRadio({super.key});
 
   @override
   State<GenderRadio> createState() => _GenderRadioState();
 }
 
 class _GenderRadioState extends State<GenderRadio> {
-  Gender? value;
-
   @override
   Widget build(BuildContext context) {
+    var dataState = context.watch<DataProvider>();
+
     return Column(
-      children: <Widget>[
+      children: [
         RadioListTile<Gender>(
           value: Gender.male,
-          groupValue: value,
-          onChanged: (Gender? selectedGender) {
+          groupValue: dataState.genderValue,
+          onChanged: (selectedGender) {
             setState(() {
-              value = selectedGender;
+              context.read<DataProvider>().changeGenderValue(Gender.male);
             });
-            widget.onChanged(selectedGender);
           },
           title: const Text("Male"),
         ),
 
         RadioListTile<Gender>(
           value: Gender.female,
-          groupValue: value,
+          groupValue: dataState.genderValue,
           onChanged: (Gender? selectedGender) {
             setState(() {
-              value = selectedGender;
+              context.read<DataProvider>().changeGenderValue(Gender.female);
             });
-            widget.onChanged(selectedGender);
           },
           title: const Text("Female"),
         )
       ],
     );
+  }
+}
+
+class CalculateButton extends StatefulWidget {
+  const CalculateButton({super.key});
+
+  @override
+  State<CalculateButton> createState() => _CalculateButtonState();
+}
+
+class _CalculateButtonState extends State<CalculateButton> {
+  @override
+  Widget build(BuildContext context) {
+    var dataState = context.watch<DataProvider>();
+    return TextButton(
+      onPressed: () {
+        setState(() {
+          context.read<DataProvider>().calculateBmiValue(
+            weightValue: dataState.weightValue, 
+            heightValue: dataState.heightValue
+          );
+        });
+      },
+      child: const Text('Calculate'),
+    );
+  }
+}
+
+class ResultText extends StatefulWidget {
+  const ResultText({super.key});
+
+  @override
+  State<ResultText> createState() => _ResultTextState();
+}
+
+class _ResultTextState extends State<ResultText> {
+  @override
+  Widget build(BuildContext context) {
+    var dataState = context.watch<DataProvider>();
+    
+    if (dataState.bmiValue == null) {
+      return const SizedBox();
+    } else {
+      return Column(
+        children: [
+          Text('BMI ${dataState.bmiValue?.toStringAsFixed(2)}'),
+        ],
+      );
+    }
   }
 }

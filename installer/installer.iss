@@ -2,8 +2,8 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "BMI Calculator"
-#define MyAppVersion "1.0"
-#define MyAppExeName "BMICalculator.exe"
+#define MyAppVersion "1.0.1"
+#define MyAppExeName "bmi_calc.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
